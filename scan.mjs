@@ -131,6 +131,21 @@ function buildTitleFilter(titleFilter) {
   };
 }
 
+// ── Location filter ─────────────────────────────────────────────────
+
+function buildLocationFilter(locationFilter) {
+  if (!locationFilter?.enabled) {
+    return () => true; // no filtering if disabled
+  }
+  const positive = (locationFilter?.positive || []).map(k => k.toLowerCase());
+
+  return (location) => {
+    if (!location || location.trim() === '') return true; // allow empty locations (can't determine)
+    const lower = location.toLowerCase();
+    return positive.length === 0 || positive.some(k => lower.includes(k));
+  };
+}
+
 // ── Dedup ───────────────────────────────────────────────────────────
 
 function loadSeenUrls() {
@@ -261,6 +276,7 @@ async function main() {
   const config = parseYaml(readFileSync(PORTALS_PATH, 'utf-8'));
   const companies = config.tracked_companies || [];
   const titleFilter = buildTitleFilter(config.title_filter);
+  const locationFilter = buildLocationFilter(config.location_filter);
 
   // 2. Filter to enabled companies with detectable APIs
   const targets = companies
@@ -282,6 +298,7 @@ async function main() {
   const date = new Date().toISOString().slice(0, 10);
   let totalFound = 0;
   let totalFiltered = 0;
+  let totalLocationFiltered = 0;
   let totalDupes = 0;
   const newOffers = [];
   const errors = [];
@@ -296,6 +313,10 @@ async function main() {
       for (const job of jobs) {
         if (!titleFilter(job.title)) {
           totalFiltered++;
+          continue;
+        }
+        if (!locationFilter(job.location)) {
+          totalLocationFiltered++;
           continue;
         }
         if (seenUrls.has(job.url)) {
@@ -332,6 +353,7 @@ async function main() {
   console.log(`Companies scanned:     ${targets.length}`);
   console.log(`Total jobs found:      ${totalFound}`);
   console.log(`Filtered by title:     ${totalFiltered} removed`);
+  console.log(`Filtered by location:  ${totalLocationFiltered} removed`);
   console.log(`Duplicates:            ${totalDupes} skipped`);
   console.log(`New offers added:      ${newOffers.length}`);
 
